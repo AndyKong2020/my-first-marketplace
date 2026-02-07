@@ -1,0 +1,22 @@
+{
+  "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
+  "name": "my-first-marketplace",
+  "description": "AndyKong 的个人 Claude Code 插件市场",
+  "owner": {
+    "name": "AndyKong",
+    "email": "andykong2020@example.com"
+  },
+  "plugins": [
+    {
+      "name": "example-plugin",
+      "description": "一个综合示例插件，展示所有 Claude Code 扩展选项包括命令、代理、技能、钩子和 MCP 服务器",
+      "version": "1.0.0",
+      "author": {
+        "name": "AndyKong"
+      },
+      "source": "./plugins/example-plugin",
+      "category": "examples",
+      "strict": true
+    }
+  ]
+}
