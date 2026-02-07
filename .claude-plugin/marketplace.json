@@ -17,6 +17,23 @@
       "source": "./plugins/example-plugin",
       "category": "examples",
       "strict": true
+    },
+    {
+      "name": "ascendc-agent",
+      "description": "Ascend C 算子开发辅助工具集 - 包含评估、对比、代码分析等 agent",
+      "version": "1.0.0",
+      "author": {
+        "name": "cann-dev"
+      },
+      "source": {
+        "source": "url",
+        "url": "https://gitcode.com/cann-dev/ascendc-agent.git"
+      },
+      "homepage": "https://gitcode.com/cann-dev/ascendc-agent",
+      "repository": "https://gitcode.com/cann-dev/ascendc-agent",
+      "category": "development",
+      "keywords": ["ascendc", "ai", "operator", "agent"],
+      "strict": true
     }
   ]
 }
