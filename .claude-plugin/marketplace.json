@@ -34,6 +34,25 @@
       "category": "development",
       "keywords": ["ascendc", "ai", "operator", "agent"],
       "strict": true
+    },
+    {
+      "name": "my-first-plugin",
+      "description": "我的第一个 Claude Code 插件 - 包含 hello 命令和问候技能",
+      "version": "1.0.0",
+      "author": {
+        "name": "AndyKong",
+        "email": "andykong2020@example.com"
+      },
+      "source": {
+        "source": "github",
+        "repo": "AndyKong2020/my-first-plugin"
+      },
+      "homepage": "https://github.com/AndyKong2020/my-first-plugin",
+      "repository": "https://github.com/AndyKong2020/my-first-plugin",
+      "license": "MIT",
+      "category": "utilities",
+      "keywords": ["example", "utilities", "greeting"],
+      "strict": true
     }
   ]
 }
