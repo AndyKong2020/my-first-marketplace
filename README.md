@@ -16,6 +16,7 @@
 
 ```bash
 /plugin install example-plugin@my-first-marketplace
+/plugin install claude-session-log@my-first-marketplace
 ```
 
 ## 更新市场
@@ -32,6 +33,11 @@
 - **描述**: 一个综合示例插件，展示所有 Claude Code 扩展选项
 - **版本**: 1.0.0
 - **分类**: examples
+
+### claude-session-log
+- **描述**: 把 Claude Code 的 transcript 与 telemetry 增量同步为项目内日志，并生成顶层 `summary.md` + `meta/` 详细产物
+- **版本**: 0.2.0
+- **分类**: utilities
 
 ## 贡献
 

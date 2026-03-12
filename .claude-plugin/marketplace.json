@@ -53,6 +53,22 @@
       "category": "utilities",
       "keywords": ["example", "utilities", "greeting"],
       "strict": true
+    },
+    {
+      "name": "claude-session-log",
+      "description": "通过 hooks 将 Claude Code transcript 与 telemetry 增量同步为项目内 summary.md 与 meta 详细日志",
+      "version": "0.2.0",
+      "author": {
+        "name": "AndyKong",
+        "email": "andykong2020@example.com"
+      },
+      "source": "./plugins/claude-session-log",
+      "homepage": "https://github.com/AndyKong2020/my-first-marketplace/tree/main/plugins/claude-session-log",
+      "repository": "https://github.com/AndyKong2020/my-first-marketplace",
+      "license": "MIT",
+      "category": "utilities",
+      "keywords": ["logging", "hooks", "markdown", "telemetry", "transcript"],
+      "strict": true
     }
   ]
 }
