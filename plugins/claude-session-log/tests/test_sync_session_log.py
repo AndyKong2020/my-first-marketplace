@@ -409,6 +409,13 @@ class SyncSessionLogTests(unittest.TestCase):
             line for line in text.splitlines() if not line.startswith("- Last synced at:")
         )
 
+    def normalized_usage(self, payload: dict) -> dict:
+        normalized = json.loads(json.dumps(payload))
+        session = normalized.get("session")
+        if isinstance(session, dict):
+            session.pop("last_synced_at", None)
+        return normalized
+
     def test_sync_renders_supported_events_and_artifacts(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
             fixture = self.make_fixture(Path(tmpdir))
@@ -425,6 +432,7 @@ class SyncSessionLogTests(unittest.TestCase):
 
             session_md = result.session_markdown_path.read_text(encoding="utf-8")
             summary_md = result.summary_path.read_text(encoding="utf-8")
+            usage_payload = json.loads(result.usage_path.read_text(encoding="utf-8"))
             self.assertIn("# Claude Session: Audit session summary", session_md)
             self.assertIn("`queue-operation`", session_md)
             self.assertIn("`file-history-snapshot`", session_md)
@@ -454,6 +462,7 @@ class SyncSessionLogTests(unittest.TestCase):
             self.assertIn("Claude Session: Audit session summary", index_text)
             self.assertIn("sessions/2026/03/session-123.md", index_text)
             self.assertEqual(result.log_root / "summary.md", result.summary_path)
+            self.assertEqual(result.log_root / "usage.json", result.usage_path)
             self.assertIn("## Conversation", summary_md)
             self.assertIn("#### Thinking", summary_md)
             self.assertIn("I should inspect the repository and use tools carefully.", summary_md)
@@ -465,10 +474,29 @@ class SyncSessionLogTests(unittest.TestCase):
             self.assertIn("[agent-helper]", summary_md)
             self.assertIn("Telemetry cost USD", summary_md)
             self.assertIn("Open session detail", summary_md)
+            self.assertIn("Open usage JSON", summary_md)
             self.assertNotIn("Progress payload", summary_md)
             self.assertNotIn("Remember to capture the rate limit issue.", summary_md)
             self.assertNotIn("file-history-snapshot", summary_md)
             self.assertNotIn("## Telemetry Events", summary_md)
+            self.assertEqual("session-123", usage_payload["session"]["id"])
+            self.assertEqual("Claude Session: Audit session summary", usage_payload["session"]["title"])
+            self.assertEqual("Audit session summary", usage_payload["session"]["summary"])
+            self.assertEqual("PostToolUse", usage_payload["session"]["last_hook_event"])
+            self.assertEqual(135, usage_payload["transcript_usage"]["input_tokens"])
+            self.assertEqual(54, usage_payload["transcript_usage"]["output_tokens"])
+            self.assertEqual(312, usage_payload["transcript_usage"]["cache_read_input_tokens"])
+            self.assertEqual(0.012345, usage_payload["telemetry"]["cost_usd"])
+            self.assertEqual(111, usage_payload["telemetry"]["input_tokens"])
+            self.assertEqual(22, usage_payload["telemetry"]["output_tokens"])
+            self.assertEqual(333, usage_payload["telemetry"]["cached_input_tokens"])
+            self.assertEqual(444, usage_payload["telemetry"]["duration_ms_total"])
+            self.assertEqual(55, usage_payload["telemetry"]["average_ttft_ms"])
+            self.assertEqual(2, usage_payload["counts"]["telemetry_events"])
+            self.assertIn("glm-4.7", usage_payload["models"])
+            self.assertIn("glm-5", usage_payload["models"])
+            self.assertTrue(usage_payload["paths"]["summary_md"].endswith("/.claude-log/summary.md"))
+            self.assertTrue(usage_payload["paths"]["session_md"].endswith("/meta/sessions/2026/03/session-123.md"))
 
     def test_sync_is_idempotent_and_dedupes_telemetry(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -487,6 +515,7 @@ class SyncSessionLogTests(unittest.TestCase):
             )
             first_markdown = first.session_markdown_path.read_text(encoding="utf-8")
             first_summary = first.summary_path.read_text(encoding="utf-8")
+            first_usage = json.loads(first.usage_path.read_text(encoding="utf-8"))
 
             second = SYNC_MODULE.sync_session_log(
                 hook_input=hook_input,
@@ -495,6 +524,7 @@ class SyncSessionLogTests(unittest.TestCase):
             )
             second_markdown = second.session_markdown_path.read_text(encoding="utf-8")
             second_summary = second.summary_path.read_text(encoding="utf-8")
+            second_usage = json.loads(second.usage_path.read_text(encoding="utf-8"))
 
             self.assertEqual(
                 self.normalized_markdown(first_markdown),
@@ -503,6 +533,10 @@ class SyncSessionLogTests(unittest.TestCase):
             self.assertEqual(
                 self.normalized_markdown(first_summary),
                 self.normalized_markdown(second_summary),
+            )
+            self.assertEqual(
+                self.normalized_usage(first_usage),
+                self.normalized_usage(second_usage),
             )
 
             telemetry_lines = (

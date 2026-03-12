@@ -131,6 +131,7 @@ class SyncResult:
     session_id: str
     session_markdown_path: Path
     summary_path: Path
+    usage_path: Path
     state_path: Path
     index_path: Path
     telemetry_artifact_path: Path
@@ -248,6 +249,7 @@ def sync_session_log(
     session_markdown_path = log_root / markdown_relpath
     session_markdown_path.parent.mkdir(parents=True, exist_ok=True)
     summary_path = log_root / "summary.md"
+    usage_path = log_root / "usage.json"
 
     render_artifacts_dir = session_artifacts_dir / "rendered"
     if render_artifacts_dir.exists():
@@ -285,8 +287,25 @@ def sync_session_log(
         hook_input=hook_input,
         render_ctx=summary_render_ctx,
         session_markdown_path=session_markdown_path,
+        usage_path=usage_path,
     )
     write_text(summary_path, summary_markdown)
+    write_json(
+        usage_path,
+        build_usage_payload(
+            session_id=session_paths.session_id,
+            session_title=session_title,
+            session_summary=session_summary,
+            transcript_events=transcript_events,
+            telemetry_records=telemetry_records,
+            hook_input=hook_input,
+            transcript_path=session_paths.transcript_path,
+            session_markdown_path=session_markdown_path,
+            summary_path=summary_path,
+            index_path=meta_root / "index.md",
+            telemetry_artifact_path=telemetry_artifact_path,
+        ),
+    )
 
     state_payload = build_state_payload(
         old_state=state,
@@ -306,6 +325,7 @@ def sync_session_log(
         session_id=session_paths.session_id,
         session_markdown_path=session_markdown_path,
         summary_path=summary_path,
+        usage_path=usage_path,
         state_path=state_path,
         index_path=index_path,
         telemetry_artifact_path=telemetry_artifact_path,
@@ -678,6 +698,7 @@ def build_summary_markdown(
     hook_input: dict[str, Any],
     render_ctx: RenderContext,
     session_markdown_path: Path,
+    usage_path: Path,
 ) -> str:
     first_ts = first_known_timestamp(transcript_events)
     last_ts = last_known_timestamp(transcript_events)
@@ -701,6 +722,7 @@ def build_summary_markdown(
                 ("Models", ", ".join(models) or "-"),
                 ("Detailed log", f"[Open session detail]({render_ctx.relative_link(session_markdown_path)})"),
                 ("Detailed index", f"[Open meta index]({render_ctx.relative_link(meta_index_path)})"),
+                ("Usage JSON", f"[Open usage JSON]({render_ctx.relative_link(usage_path)})"),
             ]
         )
     )
@@ -756,6 +778,75 @@ def build_summary_markdown(
         lines.extend(system_lines)
 
     return "\n".join(line.rstrip() for line in lines).rstrip() + "\n"
+
+
+def build_usage_payload(
+    session_id: str,
+    session_title: str,
+    session_summary: str | None,
+    transcript_events: list[TranscriptEvent],
+    telemetry_records: list[dict[str, Any]],
+    hook_input: dict[str, Any],
+    transcript_path: Path,
+    session_markdown_path: Path,
+    summary_path: Path,
+    index_path: Path,
+    telemetry_artifact_path: Path,
+) -> dict[str, Any]:
+    first_ts = first_known_timestamp(transcript_events)
+    last_ts = last_known_timestamp(transcript_events)
+    common_meta = derive_common_session_metadata(transcript_events)
+    transcript_usage = summarize_transcript_usage(transcript_events)
+    telemetry_summary = summarize_telemetry(telemetry_records)
+    event_counts = Counter(event.entry_type for event in transcript_events)
+
+    return {
+        "version": 1,
+        "session": {
+            "id": session_id,
+            "title": session_title,
+            "summary": session_summary,
+            "started_at": iso_or_none(first_ts),
+            "last_event_at": iso_or_none(last_ts),
+            "last_synced_at": iso_or_none(utcnow()),
+            "cwd": common_meta.get("cwd"),
+            "git_branch": common_meta.get("gitBranch"),
+            "last_hook_event": hook_input.get("hook_event_name"),
+            "transcript_path": str(transcript_path),
+        },
+        "paths": {
+            "summary_md": str(summary_path),
+            "session_md": str(session_markdown_path),
+            "meta_index_md": str(index_path),
+            "telemetry_jsonl": str(telemetry_artifact_path),
+        },
+        "models": collect_session_models(transcript_events, telemetry_records),
+        "counts": {
+            "transcript_events": len(transcript_events),
+            "assistant_events": int(event_counts.get("assistant", 0)),
+            "user_events": int(event_counts.get("user", 0)),
+            "sidechain_events": sum(1 for event in transcript_events if is_sidechain_event(event.entry)),
+            "telemetry_events": len(telemetry_records),
+        },
+        "transcript_usage": {
+            "input_tokens": int(transcript_usage.get("input_tokens", 0)),
+            "output_tokens": int(transcript_usage.get("output_tokens", 0)),
+            "cache_read_input_tokens": int(transcript_usage.get("cache_read_input_tokens", 0)),
+            "cache_creation_input_tokens": int(
+                transcript_usage.get("cache_creation_input_tokens", 0)
+            ),
+        },
+        "telemetry": {
+            "api_success_count": int(telemetry_summary["api_success_count"]),
+            "cost_usd": float(telemetry_summary["cost_usd"]),
+            "input_tokens": int(telemetry_summary["input_tokens"]),
+            "output_tokens": int(telemetry_summary["output_tokens"]),
+            "cached_input_tokens": int(telemetry_summary["cached_input_tokens"]),
+            "duration_ms_total": int(telemetry_summary["duration_ms_total"]),
+            "average_ttft_ms": int(telemetry_summary["average_ttft_ms"]),
+            "models": list(telemetry_summary["models"]),
+        },
+    }
 
 
 def render_summary_conversation(
@@ -1973,6 +2064,12 @@ def format_timestamp(value: datetime | None) -> str:
         return "-"
     converted = value.astimezone(timezone.utc)
     return converted.isoformat().replace("+00:00", "Z")
+
+
+def iso_or_none(value: datetime | None) -> str | None:
+    if value is None:
+        return None
+    return format_timestamp(value)
 
 
 def utcnow() -> datetime:

@@ -5,6 +5,7 @@
 ## 功能
 
 - 生成人类可读入口：`./.claude-log/summary.md`
+- 生成同级结构化用量文件：`./.claude-log/usage.json`
 - 把完整详细产物收拢到：`./.claude-log/meta/`
 - 按会话生成详细 Markdown：`./.claude-log/meta/sessions/YYYY/MM/<session_id>.md`
 - 生成详细索引：`./.claude-log/meta/index.md`
@@ -34,6 +35,7 @@
 
 ```text
 .claude-log/
+├── usage.json
 ├── summary.md
 └── meta/
     ├── index.md
@@ -47,6 +49,7 @@
 其中：
 
 - `summary.md` 是默认阅读入口，只保留人类可读的主线信息
+- `usage.json` 是当前/最近一次主 session 的结构化用量统计，适合脚本或看板读取
 - `meta/` 保存完整 transcript、telemetry、state 和侧写文件，适合调试与取证
 
 ## 调试
