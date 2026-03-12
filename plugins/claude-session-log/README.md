@@ -4,8 +4,10 @@
 
 ## 功能
 
-- 生成人类可读入口：`./.claude-log/summary.md`
-- 生成同级结构化用量文件：`./.claude-log/usage.json`
+- 为每个 session 生成独立摘要目录：`./.claude-log/summary/<session_id>/`
+- 在每个 session 摘要目录下写出：
+  - `summary.md`
+  - `usage.json`
 - 把完整详细产物收拢到：`./.claude-log/meta/`
 - 按会话生成详细 Markdown：`./.claude-log/meta/sessions/YYYY/MM/<session_id>.md`
 - 生成详细索引：`./.claude-log/meta/index.md`
@@ -35,8 +37,9 @@
 
 ```text
 .claude-log/
-├── usage.json
-├── summary.md
+├── summary/<session_id>/
+│   ├── summary.md
+│   └── usage.json
 └── meta/
     ├── index.md
     ├── sessions/YYYY/MM/<session_id>.md
@@ -48,8 +51,8 @@
 
 其中：
 
-- `summary.md` 是默认阅读入口，只保留人类可读的主线信息
-- `usage.json` 是当前/最近一次主 session 的结构化用量统计，适合脚本或看板读取
+- `summary/<session_id>/summary.md` 是该 session 的人类可读入口，只保留主线信息
+- `summary/<session_id>/usage.json` 是该 session 的结构化用量统计，适合脚本或看板读取
 - `meta/` 保存完整 transcript、telemetry、state 和侧写文件，适合调试与取证
 
 ## 调试
@@ -87,5 +90,6 @@ python3 scripts/sync_session_log.py \
 - 首版只保证插件启用后的新会话/新事件持续同步，不做历史全量回填。
 - telemetry 合并是 best-effort，只吸收 `session_id` 匹配的事件。
 - 大 payload 会被拆到 `meta/artifacts/`，Markdown 里只保留链接与摘要。
+- 本次版本不再继续写旧的顶层 `summary.md` / `usage.json`，会改为 `summary/<session_id>/...`。
 - 本次版本把旧的顶层 `index.md`、`sessions/`、`state/`、`artifacts/` 迁到了 `meta/` 下，不再继续写旧路径。
 - 修改 `hooks/hooks.json` 或脚本后，需要重启 Claude Code 会话，新的 hook 配置才会生效。

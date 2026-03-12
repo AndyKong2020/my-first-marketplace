@@ -1,7 +1,7 @@
 {
   "name": "claude-session-log",
-  "version": "0.2.1",
-  "description": "将 Claude Code 的 transcript 与 telemetry 增量整理为项目内可读摘要、用量 JSON 与详细 Markdown 日志",
+  "version": "0.3.0",
+  "description": "将 Claude Code 的 transcript 与 telemetry 增量整理为项目内按 session 分目录的可读摘要、用量 JSON 与详细 Markdown 日志",
   "author": {
     "name": "AndyKong",
     "email": "andykong2020@example.com"

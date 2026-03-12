@@ -246,10 +246,17 @@ def sync_session_log(
     markdown_relpath = state.get("markdown_relpath") or default_markdown_relpath(
         session_paths.session_id, first_timestamp
     )
+    summary_dir_relpath, summary_markdown_relpath, usage_relpath = (
+        resolve_summary_relpaths(session_paths.session_id, state)
+    )
     session_markdown_path = log_root / markdown_relpath
     session_markdown_path.parent.mkdir(parents=True, exist_ok=True)
-    summary_path = log_root / "summary.md"
-    usage_path = log_root / "usage.json"
+    summary_path = log_root / summary_markdown_relpath
+    usage_path = log_root / usage_relpath
+    summary_path.parent.mkdir(parents=True, exist_ok=True)
+    for legacy_path in (log_root / "summary.md", log_root / "usage.json"):
+        if legacy_path.exists():
+            legacy_path.unlink()
 
     render_artifacts_dir = session_artifacts_dir / "rendered"
     if render_artifacts_dir.exists():
@@ -287,6 +294,7 @@ def sync_session_log(
         hook_input=hook_input,
         render_ctx=summary_render_ctx,
         session_markdown_path=session_markdown_path,
+        index_path=meta_root / "index.md",
         usage_path=usage_path,
     )
     write_text(summary_path, summary_markdown)
@@ -311,6 +319,9 @@ def sync_session_log(
         old_state=state,
         session_id=session_paths.session_id,
         markdown_relpath=markdown_relpath,
+        summary_dir_relpath=summary_dir_relpath,
+        summary_markdown_relpath=summary_markdown_relpath,
+        usage_relpath=usage_relpath,
         session_title=session_title,
         session_summary=session_summary,
         transcript_events=transcript_events,
@@ -698,6 +709,7 @@ def build_summary_markdown(
     hook_input: dict[str, Any],
     render_ctx: RenderContext,
     session_markdown_path: Path,
+    index_path: Path,
     usage_path: Path,
 ) -> str:
     first_ts = first_known_timestamp(transcript_events)
@@ -706,7 +718,6 @@ def build_summary_markdown(
     transcript_usage = summarize_transcript_usage(transcript_events)
     telemetry_summary = summarize_telemetry(telemetry_records)
     models = collect_session_models(transcript_events, telemetry_records)
-    meta_index_path = render_ctx.markdown_path.parent / "meta" / "index.md"
 
     lines: list[str] = [f"# {session_title}", ""]
     lines.extend(
@@ -721,7 +732,7 @@ def build_summary_markdown(
                 ("Last hook event", hook_input.get("hook_event_name")),
                 ("Models", ", ".join(models) or "-"),
                 ("Detailed log", f"[Open session detail]({render_ctx.relative_link(session_markdown_path)})"),
-                ("Detailed index", f"[Open meta index]({render_ctx.relative_link(meta_index_path)})"),
+                ("Detailed index", f"[Open meta index]({render_ctx.relative_link(index_path)})"),
                 ("Usage JSON", f"[Open usage JSON]({render_ctx.relative_link(usage_path)})"),
             ]
         )
@@ -1838,10 +1849,41 @@ def default_markdown_relpath(session_id: str, timestamp: datetime) -> str:
     return f"meta/sessions/{timestamp.year:04d}/{timestamp.month:02d}/{session_id}.md"
 
 
+def default_summary_relpaths(session_id: str) -> tuple[str, str, str]:
+    summary_dir_relpath = f"summary/{session_id}"
+    return (
+        summary_dir_relpath,
+        f"{summary_dir_relpath}/summary.md",
+        f"{summary_dir_relpath}/usage.json",
+    )
+
+
+def resolve_summary_relpaths(
+    session_id: str,
+    state: dict[str, Any],
+) -> tuple[str, str, str]:
+    summary_dir_relpath = state.get("summary_dir_relpath")
+    summary_markdown_relpath = state.get("summary_markdown_relpath")
+    usage_relpath = state.get("usage_relpath")
+    if (
+        isinstance(summary_dir_relpath, str)
+        and summary_dir_relpath
+        and isinstance(summary_markdown_relpath, str)
+        and summary_markdown_relpath
+        and isinstance(usage_relpath, str)
+        and usage_relpath
+    ):
+        return summary_dir_relpath, summary_markdown_relpath, usage_relpath
+    return default_summary_relpaths(session_id)
+
+
 def build_state_payload(
     old_state: dict[str, Any],
     session_id: str,
     markdown_relpath: str,
+    summary_dir_relpath: str,
+    summary_markdown_relpath: str,
+    usage_relpath: str,
     session_title: str,
     session_summary: str | None,
     transcript_events: list[TranscriptEvent],
@@ -1859,6 +1901,9 @@ def build_state_payload(
         "title": session_title,
         "summary": session_summary,
         "markdown_relpath": markdown_relpath,
+        "summary_dir_relpath": summary_dir_relpath,
+        "summary_markdown_relpath": summary_markdown_relpath,
+        "usage_relpath": usage_relpath,
         "project_root": str(project_root),
         "cwd": common_meta.get("cwd"),
         "gitBranch": common_meta.get("gitBranch"),

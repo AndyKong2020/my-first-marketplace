@@ -456,13 +456,27 @@ class SyncSessionLogTests(unittest.TestCase):
 
             state = json.loads(result.state_path.read_text(encoding="utf-8"))
             self.assertEqual("meta/sessions/2026/03/session-123.md", state["markdown_relpath"])
+            self.assertEqual("summary/session-123", state["summary_dir_relpath"])
+            self.assertEqual(
+                "summary/session-123/summary.md",
+                state["summary_markdown_relpath"],
+            )
+            self.assertEqual("summary/session-123/usage.json", state["usage_relpath"])
             self.assertEqual(2, len(state["telemetry_event_ids"]))
 
             index_text = result.index_path.read_text(encoding="utf-8")
             self.assertIn("Claude Session: Audit session summary", index_text)
             self.assertIn("sessions/2026/03/session-123.md", index_text)
-            self.assertEqual(result.log_root / "summary.md", result.summary_path)
-            self.assertEqual(result.log_root / "usage.json", result.usage_path)
+            self.assertEqual(
+                result.log_root / "summary" / "session-123" / "summary.md",
+                result.summary_path,
+            )
+            self.assertEqual(
+                result.log_root / "summary" / "session-123" / "usage.json",
+                result.usage_path,
+            )
+            self.assertFalse((result.log_root / "summary.md").exists())
+            self.assertFalse((result.log_root / "usage.json").exists())
             self.assertIn("## Conversation", summary_md)
             self.assertIn("#### Thinking", summary_md)
             self.assertIn("I should inspect the repository and use tools carefully.", summary_md)
@@ -475,6 +489,9 @@ class SyncSessionLogTests(unittest.TestCase):
             self.assertIn("Telemetry cost USD", summary_md)
             self.assertIn("Open session detail", summary_md)
             self.assertIn("Open usage JSON", summary_md)
+            self.assertIn("(../../meta/index.md)", summary_md)
+            self.assertIn("(../../meta/sessions/2026/03/session-123.md)", summary_md)
+            self.assertIn("(usage.json)", summary_md)
             self.assertNotIn("Progress payload", summary_md)
             self.assertNotIn("Remember to capture the rate limit issue.", summary_md)
             self.assertNotIn("file-history-snapshot", summary_md)
@@ -495,7 +512,11 @@ class SyncSessionLogTests(unittest.TestCase):
             self.assertEqual(2, usage_payload["counts"]["telemetry_events"])
             self.assertIn("glm-4.7", usage_payload["models"])
             self.assertIn("glm-5", usage_payload["models"])
-            self.assertTrue(usage_payload["paths"]["summary_md"].endswith("/.claude-log/summary.md"))
+            self.assertTrue(
+                usage_payload["paths"]["summary_md"].endswith(
+                    "/.claude-log/summary/session-123/summary.md"
+                )
+            )
             self.assertTrue(usage_payload["paths"]["session_md"].endswith("/meta/sessions/2026/03/session-123.md"))
 
     def test_sync_is_idempotent_and_dedupes_telemetry(self) -> None:
@@ -538,6 +559,8 @@ class SyncSessionLogTests(unittest.TestCase):
                 self.normalized_usage(first_usage),
                 self.normalized_usage(second_usage),
             )
+            self.assertEqual(first.summary_path, second.summary_path)
+            self.assertEqual(first.usage_path, second.usage_path)
 
             telemetry_lines = (
                 second.telemetry_artifact_path.read_text(encoding="utf-8").strip().splitlines()
