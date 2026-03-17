@@ -4,7 +4,7 @@
 
 ## 功能
 
-- 为每个 session 生成独立摘要目录：`./.claude-log/summary/<session_id>/`
+- 为每个 session 生成独立摘要目录：`./.claude-log/summary/<yyyy-mm-dd_hh-mm-ss>/`
 - 在每个 session 摘要目录下写出：
   - `summary.md`
   - `usage.json`
@@ -37,7 +37,7 @@
 
 ```text
 .claude-log/
-├── summary/<session_id>/
+├── summary/<yyyy-mm-dd_hh-mm-ss>/
 │   ├── summary.md
 │   └── usage.json
 └── meta/
@@ -51,8 +51,9 @@
 
 其中：
 
-- `summary/<session_id>/summary.md` 是该 session 的人类可读入口，只保留主线信息
-- `summary/<session_id>/usage.json` 是该 session 的结构化用量统计，适合脚本或看板读取
+- `summary/<yyyy-mm-dd_hh-mm-ss>/summary.md` 是该 session 的人类可读入口，只保留主线信息
+- `summary/<yyyy-mm-dd_hh-mm-ss>/usage.json` 是该 session 的结构化用量统计，适合脚本或看板读取
+- `summary/` 目录名默认取 session 首条事件时间，格式为 `YYYY-MM-DD_HH-MM-SS`（北京时间，UTC+8）
 - `meta/` 保存完整 transcript、telemetry、state 和侧写文件，适合调试与取证
 
 ## 调试
@@ -90,6 +91,6 @@ python3 scripts/sync_session_log.py \
 - 首版只保证插件启用后的新会话/新事件持续同步，不做历史全量回填。
 - telemetry 合并是 best-effort，只吸收 `session_id` 匹配的事件。
 - 大 payload 会被拆到 `meta/artifacts/`，Markdown 里只保留链接与摘要。
-- 本次版本不再继续写旧的顶层 `summary.md` / `usage.json`，会改为 `summary/<session_id>/...`。
+- 本次版本不再继续写旧的顶层 `summary.md` / `usage.json`，会改为 `summary/<yyyy-mm-dd_hh-mm-ss>/...`。
 - 本次版本把旧的顶层 `index.md`、`sessions/`、`state/`、`artifacts/` 迁到了 `meta/` 下，不再继续写旧路径。
 - 修改 `hooks/hooks.json` 或脚本后，需要重启 Claude Code 会话，新的 hook 配置才会生效。

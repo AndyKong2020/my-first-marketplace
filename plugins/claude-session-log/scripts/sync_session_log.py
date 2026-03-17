@@ -12,7 +12,7 @@ import shutil
 import sys
 from collections import Counter
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any, Iterable
 
@@ -24,6 +24,7 @@ LARGE_TELEMETRY_INLINE_LIMIT = 2000
 SUMMARY_TEXT_INLINE_LIMIT = 4000
 SUMMARY_VALUE_INLINE_LIMIT = 1200
 STATE_VERSION = 1
+BEIJING_TIMEZONE = timezone(timedelta(hours=8))
 
 IMAGE_EXTENSIONS = {
     "image/png": "png",
@@ -246,8 +247,16 @@ def sync_session_log(
     markdown_relpath = state.get("markdown_relpath") or default_markdown_relpath(
         session_paths.session_id, first_timestamp
     )
+    legacy_summary_relpaths = legacy_summary_relpaths_for_session(
+        session_paths.session_id, state
+    )
     summary_dir_relpath, summary_markdown_relpath, usage_relpath = (
-        resolve_summary_relpaths(session_paths.session_id, state)
+        resolve_summary_relpaths(
+            session_id=session_paths.session_id,
+            first_timestamp=first_timestamp,
+            state=state,
+            log_root=log_root,
+        )
     )
     session_markdown_path = log_root / markdown_relpath
     session_markdown_path.parent.mkdir(parents=True, exist_ok=True)
@@ -314,6 +323,12 @@ def sync_session_log(
             telemetry_artifact_path=telemetry_artifact_path,
         ),
     )
+    if legacy_summary_relpaths is not None and legacy_summary_relpaths != (
+        summary_dir_relpath,
+        summary_markdown_relpath,
+        usage_relpath,
+    ):
+        cleanup_summary_outputs(log_root, legacy_summary_relpaths)
 
     state_payload = build_state_payload(
         old_state=state,
@@ -1849,8 +1864,11 @@ def default_markdown_relpath(session_id: str, timestamp: datetime) -> str:
     return f"meta/sessions/{timestamp.year:04d}/{timestamp.month:02d}/{session_id}.md"
 
 
-def default_summary_relpaths(session_id: str) -> tuple[str, str, str]:
-    summary_dir_relpath = f"summary/{session_id}"
+def format_summary_dir_name(timestamp: datetime) -> str:
+    return timestamp.astimezone(BEIJING_TIMEZONE).strftime("%Y-%m-%d_%H-%M-%S")
+
+
+def build_summary_relpaths(summary_dir_relpath: str) -> tuple[str, str, str]:
     return (
         summary_dir_relpath,
         f"{summary_dir_relpath}/summary.md",
@@ -1858,9 +1876,51 @@ def default_summary_relpaths(session_id: str) -> tuple[str, str, str]:
     )
 
 
-def resolve_summary_relpaths(
+def legacy_default_summary_relpaths(session_id: str) -> tuple[str, str, str]:
+    return build_summary_relpaths(f"summary/{session_id}")
+
+
+def default_summary_relpaths(
+    first_timestamp: datetime,
+    log_root: Path,
+) -> tuple[str, str, str]:
+    base_dir_name = format_summary_dir_name(first_timestamp)
+    base_summary_dir_relpath = f"summary/{base_dir_name}"
+    summary_dir_relpath = ensure_unique_summary_dir_relpath(log_root, base_summary_dir_relpath)
+    return build_summary_relpaths(summary_dir_relpath)
+
+
+def ensure_unique_summary_dir_relpath(log_root: Path, base_relpath: str) -> str:
+    candidate = base_relpath
+    attempt = 1
+    while (log_root / candidate).exists():
+        attempt += 1
+        candidate = f"{base_relpath}-{attempt:02d}"
+    return candidate
+
+
+def legacy_summary_relpaths_for_session(
     session_id: str,
     state: dict[str, Any],
+) -> tuple[str, str, str] | None:
+    summary_dir_relpath = state.get("summary_dir_relpath")
+    summary_markdown_relpath = state.get("summary_markdown_relpath")
+    usage_relpath = state.get("usage_relpath")
+    legacy_relpaths = legacy_default_summary_relpaths(session_id)
+    if (
+        summary_dir_relpath == legacy_relpaths[0]
+        and summary_markdown_relpath == legacy_relpaths[1]
+        and usage_relpath == legacy_relpaths[2]
+    ):
+        return legacy_relpaths
+    return None
+
+
+def resolve_summary_relpaths(
+    session_id: str,
+    first_timestamp: datetime,
+    state: dict[str, Any],
+    log_root: Path,
 ) -> tuple[str, str, str]:
     summary_dir_relpath = state.get("summary_dir_relpath")
     summary_markdown_relpath = state.get("summary_markdown_relpath")
@@ -1872,9 +1932,24 @@ def resolve_summary_relpaths(
         and summary_markdown_relpath
         and isinstance(usage_relpath, str)
         and usage_relpath
+        and legacy_summary_relpaths_for_session(session_id, state) is None
     ):
         return summary_dir_relpath, summary_markdown_relpath, usage_relpath
-    return default_summary_relpaths(session_id)
+    return default_summary_relpaths(first_timestamp, log_root)
+
+
+def cleanup_summary_outputs(log_root: Path, relpaths: tuple[str, str, str]) -> None:
+    summary_dir_relpath, summary_markdown_relpath, usage_relpath = relpaths
+    for relpath in (summary_markdown_relpath, usage_relpath):
+        target = log_root / relpath
+        if target.exists():
+            target.unlink()
+    summary_dir = log_root / summary_dir_relpath
+    if summary_dir.exists():
+        try:
+            summary_dir.rmdir()
+        except OSError:
+            pass
 
 
 def build_state_payload(

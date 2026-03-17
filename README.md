@@ -35,8 +35,8 @@
 - **分类**: examples
 
 ### claude-session-log
-- **描述**: 把 Claude Code 的 transcript 与 telemetry 增量同步为项目内日志，并生成 `summary/<session_id>/` + `meta/` 详细产物
-- **版本**: 0.3.0
+- **描述**: 把 Claude Code 的 transcript 与 telemetry 增量同步为项目内日志，并生成按时间命名的 `summary/<yyyy-mm-dd_hh-mm-ss>/` + `meta/` 详细产物
+- **版本**: 0.3.2
 - **分类**: utilities
 
 ## 贡献

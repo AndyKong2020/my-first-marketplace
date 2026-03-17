@@ -456,23 +456,23 @@ class SyncSessionLogTests(unittest.TestCase):
 
             state = json.loads(result.state_path.read_text(encoding="utf-8"))
             self.assertEqual("meta/sessions/2026/03/session-123.md", state["markdown_relpath"])
-            self.assertEqual("summary/session-123", state["summary_dir_relpath"])
+            self.assertEqual("summary/2026-03-12_09-00-00", state["summary_dir_relpath"])
             self.assertEqual(
-                "summary/session-123/summary.md",
+                "summary/2026-03-12_09-00-00/summary.md",
                 state["summary_markdown_relpath"],
             )
-            self.assertEqual("summary/session-123/usage.json", state["usage_relpath"])
+            self.assertEqual("summary/2026-03-12_09-00-00/usage.json", state["usage_relpath"])
             self.assertEqual(2, len(state["telemetry_event_ids"]))
 
             index_text = result.index_path.read_text(encoding="utf-8")
             self.assertIn("Claude Session: Audit session summary", index_text)
             self.assertIn("sessions/2026/03/session-123.md", index_text)
             self.assertEqual(
-                result.log_root / "summary" / "session-123" / "summary.md",
+                result.log_root / "summary" / "2026-03-12_09-00-00" / "summary.md",
                 result.summary_path,
             )
             self.assertEqual(
-                result.log_root / "summary" / "session-123" / "usage.json",
+                result.log_root / "summary" / "2026-03-12_09-00-00" / "usage.json",
                 result.usage_path,
             )
             self.assertFalse((result.log_root / "summary.md").exists())
@@ -514,7 +514,7 @@ class SyncSessionLogTests(unittest.TestCase):
             self.assertIn("glm-5", usage_payload["models"])
             self.assertTrue(
                 usage_payload["paths"]["summary_md"].endswith(
-                    "/.claude-log/summary/session-123/summary.md"
+                    "/.claude-log/summary/2026-03-12_09-00-00/summary.md"
                 )
             )
             self.assertTrue(usage_payload["paths"]["session_md"].endswith("/meta/sessions/2026/03/session-123.md"))
@@ -566,6 +566,56 @@ class SyncSessionLogTests(unittest.TestCase):
                 second.telemetry_artifact_path.read_text(encoding="utf-8").strip().splitlines()
             )
             self.assertEqual(2, len(telemetry_lines))
+
+    def test_legacy_session_id_summary_path_migrates_to_timestamp_directory(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            fixture = self.make_fixture(Path(tmpdir))
+            log_root = fixture["workspace"] / ".claude-log"
+            legacy_dir = log_root / "summary" / "session-123"
+            legacy_dir.mkdir(parents=True, exist_ok=True)
+            (legacy_dir / "summary.md").write_text("legacy summary", encoding="utf-8")
+            (legacy_dir / "usage.json").write_text("{}", encoding="utf-8")
+
+            state_dir = log_root / "meta" / "state"
+            state_dir.mkdir(parents=True, exist_ok=True)
+            state_path = state_dir / "session-123.json"
+            state_path.write_text(
+                json.dumps(
+                    {
+                        "session_id": "session-123",
+                        "markdown_relpath": "meta/sessions/2026/03/session-123.md",
+                        "summary_dir_relpath": "summary/session-123",
+                        "summary_markdown_relpath": "summary/session-123/summary.md",
+                        "usage_relpath": "summary/session-123/usage.json",
+                    }
+                ),
+                encoding="utf-8",
+            )
+
+            result = SYNC_MODULE.sync_session_log(
+                hook_input={
+                    "session_id": "session-123",
+                    "transcript_path": str(fixture["transcript_path"]),
+                    "cwd": str(fixture["workspace"]),
+                    "hook_event_name": "Stop",
+                },
+                project_dir=fixture["workspace"],
+                telemetry_dir=fixture["telemetry_dir"],
+            )
+
+            self.assertEqual(
+                log_root / "summary" / "2026-03-12_09-00-00" / "summary.md",
+                result.summary_path,
+            )
+            self.assertFalse((legacy_dir / "summary.md").exists())
+            self.assertFalse((legacy_dir / "usage.json").exists())
+            self.assertFalse(legacy_dir.exists())
+
+            migrated_state = json.loads(result.state_path.read_text(encoding="utf-8"))
+            self.assertEqual(
+                "summary/2026-03-12_09-00-00",
+                migrated_state["summary_dir_relpath"],
+            )
 
     def test_subagent_transcript_resolves_back_to_main_session(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
